@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>星空一号</title>
+  <subtitle>前行。</subtitle>
+  <link href="/atom.xml" rel="self"/>
+  
+  <link href="http://hanxiaolin.me/"/>
+  <updated>2017-06-28T06:07:15.000Z</updated>
+  <id>http://hanxiaolin.me/</id>
+  
+  <author>
+    <name>hanxiaolin</name>
+    
+  </author>
+  
+  <generator uri="http://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>php之Iterator实际应用</title>
+    <link href="http://hanxiaolin.me/2017/06/28/iterator/"/>
+    <id>http://hanxiaolin.me/2017/06/28/iterator/</id>
+    <published>2017-06-28T14:00:18.000Z</published>
+    <updated>2017-06-28T06:07:15.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>php内置的spl, 有许多默认的接口, 但是在平常写业务逻辑代码用到的不多。就在今天想Iterator(迭代器)的应用场景时, 突然发现一个很好用的场景, 重复的从数据库中批量获取数据, 代码如下。  </p>
+<a id="more"></a>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div><div class="line">77</div><div class="line">78</div><div class="line">79</div><div class="line">80</div><div class="line">81</div><div class="line">82</div></pre></td><td class="code"><pre><div class="line">&lt;?php</div><div class="line">/*</div><div class="line"> * 查询迭代器</div><div class="line"> * 韩晓林</div><div class="line"> * 2017年06月28日11:35:38</div><div class="line"> * */</div><div class="line">Class tradeQueryIterator implements Iterator&#123;</div><div class="line">    private $id = 0;</div><div class="line">    private $maxId = 0;</div><div class="line">    private $redis = null;</div><div class="line">    private $redisKey = null;</div><div class="line">    private $data = [];</div><div class="line">    private $queryMaxId;</div><div class="line">    private $queryData;</div><div class="line">    private $transaction = null;</div><div class="line">    </div><div class="line">    public function __construct(callable $queryMaxId,callable $queryData, $redisKey = null)</div><div class="line">    &#123;</div><div class="line">        $this-&gt;redis = sfContext::getInstance()-&gt;getDatabaseConnection(&apos;zhuangbeiRedis&apos;);</div><div class="line">        $this-&gt;redis-&gt;select(6);</div><div class="line"></div><div class="line">        if($redisKey)&#123;</div><div class="line">            $this-&gt;redisKey = $redisKey ;</div><div class="line">        &#125;else&#123;</div><div class="line">            $trace = debug_backtrace();</div><div class="line">            $this-&gt;redisKey = &apos;trade2017task:Iterator:tmp:key&apos;.$trace[0][&apos;function&apos;].$trace[1][&apos;function&apos;];</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        $this-&gt;queryMaxId = $queryMaxId;</div><div class="line">        $this-&gt;queryData = $queryData;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public function rewind()</div><div class="line">    &#123;</div><div class="line">        $this-&gt;id = (int)$this-&gt;redis-&gt;get($this-&gt;redisKey);</div><div class="line">        $this-&gt;maxId = call_user_func($this-&gt;queryMaxId);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public function current()</div><div class="line">    &#123;</div><div class="line">        //执行事务</div><div class="line">        if($this-&gt;transaction != null)&#123;</div><div class="line">            $this-&gt;redis-&gt;EXEC();</div><div class="line">        &#125;</div><div class="line">        //开始事务</div><div class="line">        $this-&gt;redis-&gt;MULTI();</div><div class="line"></div><div class="line">        //数据源</div><div class="line">        $this-&gt;data = call_user_func($this-&gt;queryData, $this-&gt;id);</div><div class="line"></div><div class="line">        if(count($this-&gt;data) &gt; 0)&#123;</div><div class="line">            $this-&gt;id = $this-&gt;data[count($this-&gt;data)-1]-&gt;id;</div><div class="line"></div><div class="line">            $this-&gt;redis-&gt;set($this-&gt;redisKey, $this-&gt;id);</div><div class="line"></div><div class="line">            $this-&gt;transaction = 1;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        return $this-&gt;data;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public function next()</div><div class="line">    &#123;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public function key()</div><div class="line">    &#123;</div><div class="line">        return $this-&gt;id;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public function valid()</div><div class="line">    &#123;</div><div class="line">        $isValid =  $this-&gt;id != $this-&gt;maxId;</div><div class="line">        if(!$isValid)&#123;</div><div class="line">            $this-&gt;redis-&gt;del($this-&gt;redisKey);</div><div class="line">            if($this-&gt;transaction != null)&#123;</div><div class="line">                $this-&gt;redis-&gt;EXEC();</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">        return  $isValid;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;p&gt;php内置的spl, 有许多默认的接口, 但是在平常写业务逻辑代码用到的不多。就在今天想Iterator(迭代器)的应用场景时, 突然发现一个很好用的场景, 重复的从数据库中批量获取数据, 代码如下。  &lt;/p&gt;
+    
+    </summary>
+    
+    
+      <category term="iterator" scheme="http://hanxiaolin.me/tags/iterator/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>base64,urlencode,hash 归纳整理</title>
+    <link href="http://hanxiaolin.me/2017/06/08/base64/"/>
+    <id>http://hanxiaolin.me/2017/06/08/base64/</id>
+    <published>2017-06-07T17:54:54.000Z</published>
+    <updated>2017-06-08T10:27:23.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>base64、urlencode、hash本是风马牛不相及的几类东西, 这里把它们放在一起, 纯粹是因为本人想把这些零碎的小知识点做一个统一的归纳。</p>
+<a id="more"></a>
+<h2 id="base64"><a href="#base64" class="headerlink" title="base64"></a>base64</h2><p>base64是什么:</p>
+<blockquote>
+<p>base64指的是用64个字符小写字母a-z、大写字母A-Z、数字0-9、符号”+”、”/“（再加上作为垫字的”=”，实际上是65个字符作为一个基本字符集。然后，其他所有符号都转换成这个字符集中的字符。</p>
+</blockquote>
+<p>base64怎么生成:</p>
+<blockquote>
+<p>具体参考<a href="http://www.ruanyifeng.com/blog/2008/06/base64.html" target="_blank" rel="external">阮一峰的Blog</a></p>
+</blockquote>
+<p>base64用来干什么:</p>
+<blockquote>
+<ol>
+<li>便于传输。(base64将二进制数据编码成ASCII字符。因为某些传输通道只允许ASCII码传输, 比如: 电子邮件,DATA URL。)</li>
+<li>一定的加密性。(数据上从某一程度能骗过用户的眼睛不易识别具体内容)</li>
+</ol>
+</blockquote>
+<p>base64注意问题:</p>
+<blockquote>
+<ol>
+<li>base64与字符编码有关.utf-8码的”中”与gbk码的”中”的base64是不一样的。</li>
+<li>base64为了在url上传输,会把”+/“分别转成”-_”,”=”被删除掉。   </li>
+</ol>
+</blockquote>
+<h2 id="urlencode"><a href="#urlencode" class="headerlink" title="urlencode"></a>urlencode</h2><p>urlencode用来干什么:</p>
+<blockquote>
+<p>URL只能使用英文字母、阿拉伯数字和某些标点符号，不能使用其他文字和符号, 而urlencode是对URL中不支持的字符转换成unicode吗.</p>
+</blockquote>
+<p>urlencode注意问题:</p>
+<blockquote>
+<p>urlencode应该对于URL中不支持部分字符进行编码, 不要对整个URL进行编码。</p>
+</blockquote>
+<h2 id="hash"><a href="#hash" class="headerlink" title="hash"></a>hash</h2><p>hash是什么:</p>
+<blockquote>
+<p>散列函数或散列算法，又称哈希函数, 是将任意长度的数据映射到有限长度的域上。直观解释起来，就是对一串数据m进行杂糅，输出另一段固定长度的数据h，作为这段数据的特征（指纹）.</p>
+</blockquote>
+<p>常见hash算法:<br>md5, SHA-1 </p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p>各种google</p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;p&gt;base64、urlencode、hash本是风马牛不相及的几类东西, 这里把它们放在一起, 纯粹是因为本人想把这些零碎的小知识点做一个统一的归纳。&lt;/p&gt;
+    
+    </summary>
+    
+    
+      <category term="base64" scheme="http://hanxiaolin.me/tags/base64/"/>
+    
+      <category term="urlencode" scheme="http://hanxiaolin.me/tags/urlencode/"/>
+    
+      <category term="hash" scheme="http://hanxiaolin.me/tags/hash/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>正则匹配中文到底发生了什么?</title>
+    <link href="http://hanxiaolin.me/2017/06/03/php-preg-chiness/"/>
+    <id>http://hanxiaolin.me/2017/06/03/php-preg-chiness/</id>
+    <published>2017-06-02T18:51:19.000Z</published>
+    <updated>2017-06-07T09:18:16.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="学而不思则罔"><a href="#学而不思则罔" class="headerlink" title="学而不思则罔"></a>学而不思则罔</h2><p>本着”学而不思则罔”的态度, 在上篇Blog理解了ASCII、Unicode、UTF-8之间关系与含义之后, 我们将继续研究字符编码是如何在日常的程序处理中发挥作用的。<br>关于正则几乎所有的代码搬运工都会运用到, 无论在什么样的应用场景正则总能发挥它神奇的匹配能力, 那么正则是如何正确的匹配出中文的呢? 接下来就让我们一一实验。</p>
+<a id="more"></a>
+<h2 id="实践才是检验真理的唯一标准"><a href="#实践才是检验真理的唯一标准" class="headerlink" title="实践才是检验真理的唯一标准"></a>实践才是检验真理的唯一标准</h2><p>首先我们从google上去扒下两段匹配中文的正则代码。如下:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">preg_match(&quot;/[\x7f-\xff]/&quot;, &apos;我是中文&apos;)</div><div class="line">preg_match(&quot;/[\x&#123;4e00&#125;-\x&#123;9fa5&#125;]/u&quot;, &apos;我是中文&apos;)</div></pre></td></tr></table></figure></p>
+<p>然后我们开始去实验这两段代码匹配中文、英文、数字的情况。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">preg_match(&quot;/[\x7f-\xff]/&quot;, &apos;中文&apos;)</div><div class="line">preg_match(&quot;/[\x&#123;4e00&#125;-\x&#123;9fa5&#125;]/u&quot;, &apos;中文&apos;)</div><div class="line"></div><div class="line">preg_match(&quot;/[\x7f-\xff]/&quot;, &apos;english&apos;)</div><div class="line">preg_match(&quot;/[\x&#123;4e00&#125;-\x&#123;9fa5&#125;]/u&quot;, &apos;english&apos;)</div><div class="line"></div><div class="line">preg_match(&quot;/[\x7f-\xff]/&quot;, 1)</div><div class="line">preg_match(&quot;/[\x&#123;4e00&#125;-\x&#123;9fa5&#125;]/u&quot;, 1)</div></pre></td></tr></table></figure></p>
+<p>结果:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">1 1 0 0 0 0</div></pre></td></tr></table></figure></p>
+<p>我们可以看到, 匹配中文的前两句代码都返回了1代表匹配成功, 后面四句全部返回0代表失败。这样就验证了这两句代码确实能够正确的匹配到中文。</p>
+<h2 id="x7f-xff"><a href="#x7f-xff" class="headerlink" title="/[\x7f-\xff]/"></a>/[\x7f-\xff]/</h2><p>首先我们来看第一句中关键的<code>[\x7f-\xff]</code>, 这段被称作”模式”。 很显然”\x”代表这个一个十六进制的数字 ,”\x7f”翻译十进制后等于127, “\xff”等于255, 而”-“代表范围从什么值到什么值, “[]”代表其中的任何一个。 那这段的含义已经很明了了, 目标字符串凡是出现在127~255区间内都能够匹配得上。但是一想我们匹配的是中文啊, 它为什么能够在这段区间内呢?<br>通过上篇Blog我们其实就能够明白, 我们肉眼说能够看到的字符, 其实在计算机内存储的都只是数字, 只不过在展现的当下按照某种编码字典把数字替换成了对应的字符而已。查看IED现在用的是UTF-8编码, 然后我们用PHP输出”中”字对应UTF-8码。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">$a = &quot;中&quot;;</div><div class="line">for ($i = 0; $i &lt; strlen($a); $i++) &#123;</div><div class="line">   echo ord($a[$i]) . &apos; &apos;;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
+<p>返回结果:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">228 184 173</div></pre></td></tr></table></figure></p>
+<p>是不是突然发现了什么, “中”字是由三个数字(三字节)组成的, 而这三个数字都在127~255之间。 具体匹配的过程是把其中的每一个数字(字节)单独去和模式匹配, 如果有一个数字(字节)与模式匹配上,就代表目标字符串与模式匹配上了。<code>228 184 173</code>这三个数字(三字节)在UTF-8码下对应着”中”字, 再把这三个数字转换成十六进制数字<code>0xe4b8ad</code>。为了确认UTF-8码的”中”是否真的为<code>0xe4b8ad</code>, 我们来小小的验证一把。 </p>
+<ol>
+<li>打开<a href="http://www.chi2ko.com/tool/CJK.htm" target="_blank" rel="external">汉字Unicode对应表</a>, 找到”中”字的Unicode编码<code>0x4e2d</code>。</li>
+<li>转成二进制 1001110 00101101</li>
+<li>按照Unicode转UTF-8(参考上篇Blog),  11100100 10111000 10101101.</li>
+<li>最后转成十六进制<code>0xe4b8ad</code>。</li>
+</ol>
+<p>果然”中”字的UTF-8码为<code>0xe4b8ad</code>。而数字与英文的字符串之所以没有匹配上模式, 是因为在UTF-8码下, 数字与英文的字符串对应的数字都分布在0~127之间。具体可以参考Unicode向下兼容的ASCII码。</p>
+<h2 id="x-4e00-x-9fa5-u"><a href="#x-4e00-x-9fa5-u" class="headerlink" title="/[\x{4e00}-\x{9fa5}]/u"></a>/[\x{4e00}-\x{9fa5}]/u</h2><p>接下来我们来看第二句的<code>\x{4e00}-\x{9fa5}</code>, 与上句有些差别的是这里的十六进制数字变化, 并且最后加了小u的修正符。其实这里的”\x4e00”正是Unicode编码中第一位中文字符”一”的编码,而”\x9fa5”为Unicode编码中文最后一位”龥”, 具体可以参考<a href="http://jicheng.tw/hanzi/unicode.html?s=4E00&amp;e=9fa5&amp;uni=" target="_blank" rel="external">Unicode文档</a>。 而对于小u修正符我们打开<a href="http://php.net/manual/zh/reference.pcre.pattern.modifiers.php" target="_blank" rel="external">PHP文档</a>, 找到关于小u的修正符描述:</p>
+<blockquote>
+<p>此修正符打开一个与 perl 不兼容的附加功能。 模式和目标字符串都被认为是 utf-8 的。 无效的目标字符串会导致 preg_* 函数什么都匹配不到； 无效的模式字符串会导致 E_WARNING 级别的错误。 PHP 5.3.4 后，5字节和6字节的 UTF-8 字符序列被考虑为无效（resp. PCRE 7.3 2007-08-28）。 以前就被认为是无效的 UTF-8。</p>
+</blockquote>
+<p>可以得知当我们用了小u修正符后, 模式和目标字符串都会被认为是UTF-8码。其中模式的十六进制都会被转成UTF-8码, 而目标字符串会变被当成一个整体的UTF-8码(三个字节)。最后拿”中”字的UTF-8码<code>0xe4b8ad</code>看是否出现在0xe4b880 ~ 0xe9bea5f范围内。</p>
+<h2 id="从最初开始"><a href="#从最初开始" class="headerlink" title="从最初开始"></a>从最初开始</h2><p>一个很难的知识点或是一个新的工具总是由许许多多的小知识点、小工具所堆积所重新组合而成的, 而我们所要做的是从点点滴滴学起, 从最初开始认识解刨这个计算机世界。</p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://segmentfault.com/q/1010000004153832/a-1020000004153879" target="_blank" rel="external">PHP字符串中用正则表达式匹配中文出现乱码 segmentfault</a><br><a href="http://www.chi2ko.com/tool/CJK.htm" target="_blank" rel="external">Unicode中文编码表</a><br><a href="http://jicheng.tw/" target="_blank" rel="external">Unicode编码表大全</a><br><a href="http://www.qqxiuzi.cn/bianma/Unicode-UTF.php" target="_blank" rel="external">Unicode转UTF-8</a></p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;学而不思则罔&quot;&gt;&lt;a href=&quot;#学而不思则罔&quot; class=&quot;headerlink&quot; title=&quot;学而不思则罔&quot;&gt;&lt;/a&gt;学而不思则罔&lt;/h2&gt;&lt;p&gt;本着”学而不思则罔”的态度, 在上篇Blog理解了ASCII、Unicode、UTF-8之间关系与含义之后, 我们将继续研究字符编码是如何在日常的程序处理中发挥作用的。&lt;br&gt;关于正则几乎所有的代码搬运工都会运用到, 无论在什么样的应用场景正则总能发挥它神奇的匹配能力, 那么正则是如何正确的匹配出中文的呢? 接下来就让我们一一实验。&lt;/p&gt;
+    
+    </summary>
+    
+    
+      <category term="utf-8" scheme="http://hanxiaolin.me/tags/utf-8/"/>
+    
+      <category term="正则" scheme="http://hanxiaolin.me/tags/%E6%AD%A3%E5%88%99/"/>
+    
+      <category term="php" scheme="http://hanxiaolin.me/tags/php/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>ASCII,ANSI,Unicode,UTF-8编码区别</title>
+    <link href="http://hanxiaolin.me/2017/06/01/ascii-utf8-unicode-ansi%E7%BC%96%E7%A0%81%E5%8C%BA%E5%88%AB/"/>
+    <id>http://hanxiaolin.me/2017/06/01/ascii-utf8-unicode-ansi编码区别/</id>
+    <published>2017-05-31T16:13:56.000Z</published>
+    <updated>2017-06-07T09:16:34.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>在工作的过程中, 时常都会碰到字符编码的问题, 比如最常用的UTF-8码。 从IED要设置为UTF-8码到网上下载数据选择UTF-8码, 编码问题总会关系到数据能否正常展现。</p>
+<p>在很早前刚入坑的时候, 老师总会告诉我们打开IDE前得先设置字符编码为UTF-8无BOM格式, 当时也不理解这样设置的目的, 稀里糊涂的一直到今。</p>
+<a id="more"></a>
+<h2 id="ASCII码"><a href="#ASCII码" class="headerlink" title="ASCII码"></a>ASCII码</h2><p>对于一个phper而言, ASCII码的接触不算太多, 或许是php的两个ASCII码转换函数<code>chr,ord</code>让我们了解到ASCII码。那ASCII码究竟是什么样的存在呢?</p>
+<p><a href="http://baike.baidu.com/link?url=KLPq2rKTWQci6HKVTckY2MNkM7kP61WE8Tkpd2B8CTF332buwA17bQP4kPxxnuGzD7qXtNHCIJgCDk0EQE0rG_" target="_blank" rel="external">ASCII</a>全称American Standard Code For Information Interchange(美国信息交换标准码), 是20世纪60年代美国制定了一套字符编码, 对英语字符与二进制位之间的关系，做了统一规定。</p>
+<p>对于二进制绝大多数同学应该有所了解, 除了在生活中我们一直计数使用的十进制外还有二进制、十六进制等的存在, 相对于十进制的逢十进一, 二进制、十六进制就如其名, 分别逢二、逢十六进一。 比如十进制的2在二进制表现形式为00000010, 10为00001010.</p>
+<p>在计算机中数据是以二进制的形式存在的, 一个二进制位(最小单位bit)只包含0或1两个数字形式。而8个二进制位组成一个字节(byte), 从00000000到11111111 ,存在着256种位数组合。</p>
+<p>而ASCII码就是在1字节的基础上, 由不同二进制位的组合对应不同英语字符。比如 0110 0001 对应 a, 0110 0010 对应 b. 加上一些符号的对应, 这套ASCII码总共有128个字符的编码, 从0到127, 因为只用到了7个二进制位, 最高1个二进制位规定为0. 附上<a href="https://imgsa.baidu.com/baike/c0%3Dbaike150%2C5%2C5%2C150%2C50/sign=c05506e79482d158af8f51e3e16372bd/c2fdfc039245d688c56332adacc27d1ed21b2451.jpg" target="_blank" rel="external">ASCII表</a></p>
+<p>随着计算机需要显示更多的字符, 20世纪80年代在原先ASCII码的基础上扩展了ASCII码(EASCII), 从原先的128个扩展到256个字符编码, 扩展的字符为特殊符号字符、外来语字母和图形符号。<a href="http://f12.baidu.com/it/u=1202383661,861332194&amp;fm=170&amp;s=A24D6EA633BFDDEB10D38F6D03004076&amp;w=640&amp;h=578&amp;img.PNG&amp;access=215967316" target="_blank" rel="external">EASCII表</a></p>
+<h2 id="ANSI编码"><a href="#ANSI编码" class="headerlink" title="ANSI编码"></a>ANSI编码</h2><p>在英语中可用1字节(8个二进制位)储存所有英文字符及常用符号，而其他语言可能使用字符众多, 比如拥有十多万字的汉字，ASCII码显然已经不够用, 于是就设计让汉语、日语及朝鲜语等可以使用数个字节来显示的编码。比如简体中文文的GB2312码, 繁体中文的Big5码。而ANSI编码并不是当当指一编码, 而是对GB2312,Big5这一系列编码的总称。</p>
+<h2 id="Unicode编码"><a href="#Unicode编码" class="headerlink" title="Unicode编码"></a>Unicode编码</h2><p>ANSI编码虽然能解决不同字符的数据与二进制数字对应, 但是同一个二级制数字可能在不同编码中代表着不同的字符。 因此我们在打开文本的时候往往非常注意字符编码, 不然打开的文件可能就是一堆乱码。 那有没有一个编码能够包含世界所有的语言字符呢? 这时候Unicode编码就应运而生了。</p>
+<p>在20世纪90年代, Unicode编码发行了它的第一个版本(第二版中加入中文), 这个版本中加入二十多种语言字符。Unicode的大小范围从十六进制的U+0000到U+10FFFF ,共有1,114,112个数字可用来映射字符, Unicode的数字空间可以划分为17个平面(plane)，每个平面包含65,536个数字, 每个平面的数字可表示为从U+xx0000到U+xxFFFF, 其中xx表示十六进制值从00到16，共计17个平面, 其中编码从U+0000至U+FFFF被称为基本多文种平面（Basic Multilingual Plane, BMP）。而Unicode编码也是向下兼容ASCII码的, 比如ASCII码中的a与Unicode编码码中的a同为 0110 0001, 都在基本平面中。最后附上中文的Unicode对应表<a href="http://jicheng.tw/hanzi/unicode.html" target="_blank" rel="external">对应表</a>,<a href="http://www.chi2ko.com/tool/CJK.htm" target="_blank" rel="external">汉字对应表</a></p>
+<h2 id="UTF-8码"><a href="#UTF-8码" class="headerlink" title="UTF-8码"></a>UTF-8码</h2><p>Unicode编码虽然定义了字符与二进制数字的对应关系, 却没有定义它的实现, 而UTF-8就是将Unicode所定义的字符数字对应关系付诸实践。UTF-8（8-bit Unicode Transformation Format）是一种针对Unicode的可变长度字符编码, 它可以用来表示Unicode标准中的任何字符。UTF-8使用一至四个字节为每个字符编码。</p>
+<p>UTF-8码有四个特点:</p>
+<ol>
+<li>128个US-ASCII字符只需一个字节编码（Unicode范围由U+0000至U+007F）。</li>
+<li>带有附加符号的拉丁文、希腊文、西里尔字母、亚美尼亚语、希伯来文、阿拉伯文、叙利亚文及它拿字母则需要两个字节编码（Unicode范围由U+0080至U+07FF）。</li>
+<li>其他基本多文种平面（BMP）中的字符（这包含了大部分常用字，如大部分的汉字）使用三个字节编码（Unicode范围由U+0800至U+FFFF）。</li>
+<li>其他极少使用的Unicode 辅助平面的字符使用四至六字节编码（Unicode范围由U+10000至U+1FFFFF使用四字节，Unicode范围由U+200000至U+3FFFFFF使用五字节，Unicode范围由U+4000000至U+7FFFFFFF使用六字节）。</li>
+</ol>
+<p>UTF-8的编码规则:</p>
+<ol>
+<li>对于单字节的符号，字节的第一位设为0，后面7位为这个符号的unicode码。因此对于英语字母，UTF-8编码和ASCII码是相同的。</li>
+<li>对于n字节的符号（n&gt;1），第一个字节的前n位都设为1，第n+1位设为0，后面字节的前两位一律设为10。剩下的没有提及的二进制位，全部为这个符号的unicode码。</li>
+</ol>
+<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p>  <a href="http://www.ruanyifeng.com/blog/2007/10/ascii_unicode_and_utf-8.html" target="_blank" rel="external">字符编码笔记：ASCII，Unicode和UTF-8</a><br>  <a href="http://demon.tw/programming/utf-16-ucs-2.html" target="_blank" rel="external">UTF-16与UCS-2的区别</a><br>  <a href="https://zh.wikipedia.org/wiki/UTF-8" target="_blank" rel="external">UTF-8 维基百科</a><br>  <a href="https://zh.wikipedia.org/wiki/ASCII" target="_blank" rel="external">ASCII 维基百科</a><br>  <a href="https://zh.wikipedia.org/wiki/EASCII" target="_blank" rel="external">EASCII 维基百科</a><br>  <a href="https://zh.wikipedia.org/wiki/Unicode" target="_blank" rel="external">Unicode 维基百科</a></p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;前言&quot;&gt;&lt;a href=&quot;#前言&quot; class=&quot;headerlink&quot; title=&quot;前言&quot;&gt;&lt;/a&gt;前言&lt;/h2&gt;&lt;p&gt;在工作的过程中, 时常都会碰到字符编码的问题, 比如最常用的UTF-8码。 从IED要设置为UTF-8码到网上下载数据选择UTF-8码, 编码问题总会关系到数据能否正常展现。&lt;/p&gt;
+&lt;p&gt;在很早前刚入坑的时候, 老师总会告诉我们打开IDE前得先设置字符编码为UTF-8无BOM格式, 当时也不理解这样设置的目的, 稀里糊涂的一直到今。&lt;/p&gt;
+    
+    </summary>
+    
+    
+      <category term="ascii" scheme="http://hanxiaolin.me/tags/ascii/"/>
+    
+      <category term="utf-8" scheme="http://hanxiaolin.me/tags/utf-8/"/>
+    
+      <category term="unicode" scheme="http://hanxiaolin.me/tags/unicode/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>ssh 公钥私钥认证记录</title>
+    <link href="http://hanxiaolin.me/2017/05/23/ssh/"/>
+    <id>http://hanxiaolin.me/2017/05/23/ssh/</id>
+    <published>2017-05-23T14:42:00.000Z</published>
+    <updated>2017-06-07T09:18:39.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="公钥私钥"><a href="#公钥私钥" class="headerlink" title="公钥私钥"></a>公钥私钥</h2><p>一直都有在使用证书登录, 但每次都是在用的时候google生成秘钥的命令, 然后把生成的私钥加到服务器上去, 也没去仔细去了解其中的原理,<br>所以打算写篇blog去详细的了解记录证书登录原理和命令。</p>
+<p>在客户端终端运行命令:<br><code>ssh-keygen -t rsa -P &quot;123&quot;</code></p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;公钥私钥&quot;&gt;&lt;a href=&quot;#公钥私钥&quot; class=&quot;headerlink&quot; title=&quot;公钥私钥&quot;&gt;&lt;/a&gt;公钥私钥&lt;/h2&gt;&lt;p&gt;一直都有在使用证书登录, 但每次都是在用的时候google生成秘钥的命令, 然后把生成的私钥加到服务器上去, 也没去仔细去了
+    
+    </summary>
+    
+    
+      <category term="ssh" scheme="http://hanxiaolin.me/tags/ssh/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>redis升级之原数据导入</title>
+    <link href="http://hanxiaolin.me/2017/04/28/page/"/>
+    <id>http://hanxiaolin.me/2017/04/28/page/</id>
+    <published>2017-04-27T16:21:45.000Z</published>
+    <updated>2017-06-07T09:16:55.000Z</updated>
+    
+    <content type="html"><![CDATA[<h3 id="redis版本老旧"><a href="#redis版本老旧" class="headerlink" title="redis版本老旧"></a>redis版本老旧</h3><p>写代码的过程中,刚好用到一个新的redis命令<code>SRANDMEMBER</code>,调用的时候却发现报了错误<code>(error) ERR unknown command &#39;SRANDMEMBER&#39;</code><br>, 查询redis的手册看到命令在2.6版本之后才开始支持, 再查看现在所使用redis的版本号, 居然是老旧的2.4版本。既然如此那便开始动手升级吧。 </p>
+<a id="more"></a>
+<h3 id="升级redis"><a href="#升级redis" class="headerlink" title="升级redis"></a>升级redis</h3><p>从redis官网下载了稳定版源码包 <a href="http://download.redis.io/releases/redis-3.2.8.tar.gz" target="_blank" rel="external">redis-3.2.8.tar.gz</a>,<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">wget http://download.redis.io/releases/redis-3.2.8.tar.gz</div><div class="line">tar xzf redis-3.2.8.tar.gz</div><div class="line">cd redis-3.2.8</div><div class="line">make</div></pre></td></tr></table></figure></p>
+<p>然后开始安装编译, 安装完毕。就当我关掉新的redis进程, 开启新版本的redis进程的时候。测试那边都在报首页数据不见了, 这才想起, 网站的很多持久化配置数据<br>都在redis上, 那只能把原数据导入过来了。</p>
+<h3 id="数据导入"><a href="#数据导入" class="headerlink" title="数据导入"></a>数据导入</h3><p>Google了一会发现了一个叫 <a href="https://github.com/delano/redis-dump" target="_blank" rel="external">redis-dump</a> 的工具, 支持redis数据的导入导出。那么开始安装redis-dump。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">gem install redis-dump</div></pre></td></tr></table></figure>
+<blockquote>
+<p>gem是ruby包管理工具,如果没有的话需要提前安装。</p>
+</blockquote>
+<p>安装完毕执行命令导出数据比较多的库<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">redis-dump -u 192.168.8.30:6379 -d 6 &gt; shihuo6.json</div></pre></td></tr></table></figure></p>
+<p>然后把数据导入新版本的redis<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">redis &lt; shihuo6.json redis-load -d 6 -u 192.168.8.30:2345</div></pre></td></tr></table></figure></p>
+<p>报错<code>invalid bytes in UTF8 string</code>, 打开文档看到如果存储的字符串是 二进制 或者 序列化 过的需要加参数-n。再来导入一次。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">redis &lt; shihuo6.json redis-load -d 6 -u 192.168.8.30:2345 -n</div></pre></td></tr></table></figure>
+<p>成功了。</p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h3 id=&quot;redis版本老旧&quot;&gt;&lt;a href=&quot;#redis版本老旧&quot; class=&quot;headerlink&quot; title=&quot;redis版本老旧&quot;&gt;&lt;/a&gt;redis版本老旧&lt;/h3&gt;&lt;p&gt;写代码的过程中,刚好用到一个新的redis命令&lt;code&gt;SRANDMEMBER&lt;/code&gt;,调用的时候却发现报了错误&lt;code&gt;(error) ERR unknown command &amp;#39;SRANDMEMBER&amp;#39;&lt;/code&gt;&lt;br&gt;, 查询redis的手册看到命令在2.6版本之后才开始支持, 再查看现在所使用redis的版本号, 居然是老旧的2.4版本。既然如此那便开始动手升级吧。 &lt;/p&gt;
+    
+    </summary>
+    
+    
+      <category term="redis" scheme="http://hanxiaolin.me/tags/redis/"/>
+    
+  </entry>
+  
+</feed>
