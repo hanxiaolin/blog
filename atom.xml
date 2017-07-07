@@ -5,7 +5,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="http://hanxiaolin.me/"/>
-  <updated>2017-07-07T14:55:53.000Z</updated>
+  <updated>2017-07-07T14:56:35.000Z</updated>
   <id>http://hanxiaolin.me/</id>
   
   <author>
@@ -20,7 +20,7 @@
     <link href="http://hanxiaolin.me/2017/07/08/php-module/"/>
     <id>http://hanxiaolin.me/2017/07/08/php-module/</id>
     <published>2017-07-07T21:03:21.000Z</published>
-    <updated>2017-07-07T14:55:53.000Z</updated>
+    <updated>2017-07-07T14:56:35.000Z</updated>
     
     <content type="html"><![CDATA[<h2 id="为什么要开发php扩展"><a href="#为什么要开发php扩展" class="headerlink" title="为什么要开发php扩展?"></a>为什么要开发php扩展?</h2><p>今天在研究php扩展的时候, 有同学问我为什么要自己动手写php的扩展, 什么场景采用的到? 我回答他在需要处理大量数据的时候, 用c写的扩展性能会高很多。晚上回到家中想起, 假如自己在实际项目中去写php扩展, 很可能不会因为性能原因。因为对于php而言性能本不就是它的优势, 如果因为性能原因我们大可以选择一门更适合的语言去完成这个项目。那什么样的应用场景需要自己亲自动手去开发php扩展呢?<br>我想如果某些服务需要大批量的应用于各个项目当中, 我觉得它很适合用扩展去解决, 统一管理又独立项目之外而且还能轻松的迁移于各个项目。</p>
 <a id="more"></a>
@@ -42,7 +42,7 @@
 </blockquote>
 <p>然后再找到<code>PHP_FE(confirm_hello_compiled,  NULL)</code>, 在这行上面添加</p>
 <blockquote>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">PHP_FE(hello,  NULL)`</div></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">PHP_FE(hello,  NULL)</div></pre></td></tr></table></figure>
 </blockquote>
 <p> 大功告成。</p>
 <p>4.我们现在开始编译, 在当下目录执行phpize命令, 生成configure文件。然后就是正常的源码编译安装流程了, 见下面详细命令操作。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"># /usr/local/php7/bin/phpize </div><div class="line"># ./configure --with-config-path=/usr/local/php7/bin/php-config</div><div class="line"># make &amp;&amp; make install</div></pre></td></tr></table></figure></p>
