@@ -22,12 +22,12 @@
 </blockquote>
 <p> 大功告成。</p>
 <p>4.我们现在开始编译, 在当下目录执行phpize命令, 生成configure文件。然后就是正常的源码编译安装流程了, 见下面详细命令操作。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"># /usr/local/php7/bin/phpize </div><div class="line"># ./configure --with-config-path=/usr/local/php7/bin/php-config</div><div class="line"># make &amp;&amp; make install</div></pre></td></tr></table></figure></p>
-<p>5.这时候新生成的扩展就已经存放在php扩展目录中了, 最后打开php.ini添加一行<code>extension=hello.so</code>.<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">echo extension=hello.so &gt;&gt; /etc/php.ini</div></pre></td></tr></table></figure></p>
+<p>5.这时候新生成的扩展就已经存放在php扩展目录中了, 最后打开php.ini添加一行<code>extension=hello.so</code>.<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"># echo extension=hello.so &gt;&gt; /etc/php.ini</div></pre></td></tr></table></figure></p>
 <p>6.我们来实验一把<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"># php -a</div><div class="line">Interactive mode enabled</div><div class="line"></div><div class="line">php &gt; echo hello();</div><div class="line">This is my first extend</div><div class="line">php &gt;</div></pre></td></tr></table></figure></p>
 <p>看到了吧成功了。</p>
 <h2 id="用php开发php扩展"><a href="#用php开发php扩展" class="headerlink" title="用php开发php扩展"></a>用php开发php扩展</h2><p>除了用c开发php扩展之外, 还有个工具能用php开发php扩展, 它就是Zephir.<br>Zephir提供了一种类似php的高级语言语法的方式，来自动生成扩展的c语言代码，使编写php扩展变得非常的简单, 因为很简单这里不就多做赘述了, 如果有需要大家可以去查资料, end.</p>
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="http://www.bo56.com/php7%E6%89%A9%E5%B1%95%E5%BC%80%E5%8F%91%E4%B9%8Bhello-word/" target="_blank" rel="external">PHP7扩展开发之hello word</a><br><a href="https://segmentfault.com/a/1190000002812601" target="_blank" rel="external">Zephir–最简单的php扩展开发工具</a><br><a href="https://zephir-lang.com/" target="_blank" rel="external">zephir 官网</a></p>
-</div></article></div></main><footer><div class="paginator"><a href="/2017/07/05/gitUpgrade/" class="next">下一篇</a></div><div id="disqus_thread"></div><script>var disqus_shortname = 'hanxiaolin';
+</div></article></div></main><footer><div class="paginator"><a href="/2017/07/05/gitUpgrade/" class="next">NEXT</a></div><div id="disqus_thread"></div><script>var disqus_shortname = 'hanxiaolin';
 var disqus_identifier = '2017/07/08/php-module/';
 var disqus_title = 'php扩展开发那点事';
 var disqus_url = 'http://hanxiaolin.me/2017/07/08/php-module/';
